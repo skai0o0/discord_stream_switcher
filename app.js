@@ -42,45 +42,77 @@ async function testDiscord(){
   catch(e){ log('Discord: not ready – hãy inject script'); }
 }
 
+/**
+ * Render tiles: chỉ hiển thị badge, tên, ID. Click tile = switch.
+ * Không còn toolbar Swap/Focus, không logic webcam.
+ */
 function __renderStreamsTo(container, streams, currentIndex){
   container.innerHTML='';
-  if(!streams || !streams.length){ container.innerHTML = '<div class="muted">Chưa phát hiện stream nào. Kiểm tra Grid view + multistream + tắt camera/preview.</div>'; return; }
+  if(!streams || !streams.length){
+    container.innerHTML = '<div class="muted">Chưa phát hiện stream nào. Kiểm tra Grid view + multistream + tắt camera/preview.</div>';
+    return;
+  }
   streams.forEach(function(s,i){
-    const btn = document.createElement('button'); btn.className='tile'+(i===currentIndex?' active':'');
+    const tile = document.createElement('div');
+    tile.className='tile'+(i===currentIndex?' active':'');
+    tile.setAttribute('data-index', i);
+
     const id = (typeof s==='string'? s : s && s.id);
     const name = (s && s.name) ? s.name : ('Stream ' + (i+1));
     const isGrid = (s && s.kind === 'grid');
+    const hotkey = 'F'+(i+1);
     const gridBadge = isGrid ? '<div class="badge kind">GRID</div>' : '';
-    btn.innerHTML = gridBadge + '<div class="badge">F'+(i+1)+'</div>'+
+
+    tile.innerHTML =
+      gridBadge +
+      '<div class="badge">'+hotkey+'</div>'+
       '<div class="name">'+ name +'</div>'+
       '<div class="id">'+ ((id||'').slice(0,8))+'...'+((id||'').slice(-4)) +'</div>';
-    btn.onclick = function(){ switchByIndex(i); };
-    container.appendChild(btn);
+
+    // Click tile = switch
+    tile.onclick = function(){ switchByIndex(i); };
+
+    container.appendChild(tile);
   });
 }
 
 function renderStreams(streams, currentIndex){ __renderStreamsTo(gridEl, streams, currentIndex); }
 
 async function refreshStreams(){
-  try{ const r = await api('/api/streams/refresh','POST');
+  try{
+    const r = await api('/api/streams/refresh','POST');
     statStreams.textContent = r && r.streams ? r.streams.length : 0;
     statCurrent.textContent = (r && r.streams && r.streams.length) ? (r.currentIndex+1)+'/'+r.streams.length : '-';
-    renderStreams(r.streams, r.currentIndex); log('Refreshed streams');
+    renderStreams(r.streams, r.currentIndex);
+    log('Refreshed streams');
   }catch(e){ log('Refresh ERR: '+e.message); }
 }
 
 async function switchByIndex(i){
-  try{ const r = await api('/api/streams/switch-by-index/'+i,'POST'); log('Switch index '+(i+1)+': '+(r.success?'OK':'FAIL')); refreshStreams(); }
-  catch(e){ log('Switch ERR: '+e.message); }
+  try{
+    const r = await api('/api/streams/switch-by-index/'+i,'POST');
+    log('Switch index '+(i+1)+': '+(r.success?'OK':'FAIL'));
+    refreshStreams();
+  } catch(e){ log('Switch ERR: '+e.message); }
 }
-async function nextStream(){ try{ await api('/api/streams/next','POST'); log('Next'); refreshStreams(); }catch(e){ log('Next ERR: '+e.message);} }
-async function prevStream(){ try{ await api('/api/streams/previous','POST'); log('Previous'); refreshStreams(); }catch(e){ log('Prev ERR: '+e.message);} }
 
-function copy(text){ navigator.clipboard.writeText(text).then(()=>log('Copied to clipboard')).catch(function(e){log('Copy failed: '+e.message)}); }
+async function nextStream(){
+  try{ await api('/api/streams/next','POST'); log('Next'); refreshStreams(); }
+  catch(e){ log('Next ERR: '+e.message);}
+}
+async function prevStream(){
+  try{ await api('/api/streams/previous','POST'); log('Previous'); refreshStreams(); }
+  catch(e){ log('Prev ERR: '+e.message);}
+}
+
+function copy(text){
+  navigator.clipboard.writeText(text).then(()=>log('Copied to clipboard'))
+    .catch(function(e){log('Copy failed: '+e.message)});
+}
 function copyTestSnippet(){ copy(document.getElementById('tpl-test-snippet').textContent.trim()); }
 function copyMainScript(){ copy(document.getElementById('tpl-main-script').textContent.trim()); }
 
-// ===== Self Tests =====
+// ===== Self Tests (đã bỏ kiểm tra swap/focus toolbar) =====
 function appendTest(out, name, ok, note){
   const line = document.createElement('div');
   line.textContent = (ok ? '✅' : '❌')+' '+name+(note? ' — '+note:'');
@@ -90,19 +122,26 @@ async function runSelfTests(){
   const out = document.getElementById('testOut'); out.innerHTML='';
   try{
     // T1: Assign serverUrlLbl OK
-    var ok1=false; (function(){ var el=document.createElement('span'); el.id='serverUrlLbl_TEST'; document.body.appendChild(el); try{ var t='http://localhost:3333'; var ref=document.getElementById('serverUrlLbl_TEST'); if(ref) ref.textContent=t; ok1 = (ref.textContent===t); } finally { el.remove(); } })();
+    var ok1=false; (function(){
+      var el=document.createElement('span'); el.id='serverUrlLbl_TEST'; document.body.appendChild(el);
+      try{ var t='http://localhost:3333'; var ref=document.getElementById('serverUrlLbl_TEST'); if(ref) ref.textContent=t; ok1 = (ref.textContent===t); }
+      finally { el.remove(); }
+    })();
     appendTest(out, 'T1: Assign serverUrlLbl', ok1);
 
     // T2: Render grid + GRID badge
-    var temp=document.createElement('div'); __renderStreamsTo(temp, [{id:'AAA111',name:'Stream 1'},{id:'GRID_ID',name:'GRID',kind:'grid'}], 0);
+    var temp=document.createElement('div');
+    __renderStreamsTo(temp, [{id:'AAA111',name:'Stream 1'},{id:'GRID_ID',name:'GRID',kind:'grid'}], 0);
     var ok2 = temp.querySelectorAll('.tile').length===2 && temp.querySelector('.badge.kind')!==null;
     appendTest(out,'T2: GRID badge present', ok2);
 
-    // T3: Template main chứa DiscordStreamDeck
+    // T3: Template main có DiscordStreamDeck (đảm bảo người dùng copy đúng script inject)
     var txt = document.getElementById('tpl-main-script').textContent;
     appendTest(out,'T3: Has DiscordStreamDeck', /DiscordStreamDeck/.test(txt));
 
+    // T4: api() available
     appendTest(out,'T4: api() available', typeof api==='function');
+
     log('Self tests finished');
   }catch(e){ appendTest(out,'Runtime error',false,e.message); console.error(e); }
 }
