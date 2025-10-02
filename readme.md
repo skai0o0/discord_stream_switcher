@@ -34,7 +34,7 @@ cd discord-web-app
 
 The project includes a ready-to-use script:
 
-- `setup_oneclick_v3.bat` (one-click run on Windows)
+- `setup_oneclick.bat` (one-click run on Windows)
 
 The script will:
 
@@ -47,7 +47,7 @@ The script will:
 
 ---
 
-## Usage Guide
+## Usage Guide (For manually setup)
 
 ### 1. Preparation
 
