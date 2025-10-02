@@ -26,7 +26,7 @@
 ### Step 1. Clone the project
 
 ```bash
-git clone <repo-url>
+git clone (https://github.com/skai0o0/discord_stream_switcher.git)
 cd discord-web-app
 ```
 
