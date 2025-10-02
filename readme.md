@@ -99,12 +99,6 @@ The script will:
 
 ---
 
-## Demo
-
-
-
----
-
 ## License
 
 MIT © 2025
