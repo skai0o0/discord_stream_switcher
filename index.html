@@ -11,6 +11,7 @@
     <nav>
       <div class="navbar-left">
         <div class="navbar-logo">🎮 Discord Stream Switcher • Dashboard</div>
+        <div class="muted">(Canvas preview – dùng localhost ở máy của bạn để chạy thực)</div>
       </div>
       <div class="navbar-right">
         <button class="navbar-btn theme-btn" id="themeToggle" title="Toggle theme">
@@ -44,8 +45,8 @@
           <h3>2) Copy Script để dán vào Discord (Console)</h3>
           <p class="muted">B1: Mở Discord ở debug mode → B2: <span class="inline-code">chrome://inspect/#devices</span> → Inspect tab Discord → Console → Paste script.</p>
           <div class="row" style="margin:8px 0 12px; display:flex; gap:10px; flex-wrap:wrap">
-            <button class="btn" onclick="copyTestSnippet()">Copy Test Snippet</button>
-            <button class="btn btn-primary" onclick="copyMainScript()">Copy Main Script</button>
+            <button class="btn" onclick="copyTestSnippet()">📋 Copy Test Snippet</button>
+            <button class="btn btn-primary" onclick="copyMainScript()">📋 Copy Main Script</button>
           </div>
           <details>
             <summary class="muted">Xem nhanh lệnh mở Discord debug</summary>
@@ -85,6 +86,133 @@
     </div>
   </main>
 
-  <script src="script.js"></script>
+  <!-- ===== Templates: script snippets to copy ===== -->
+  <template id="tpl-test-snippet"><!-- Simple detector (không parse tên) -->
+const tiles = [...document.querySelectorAll('div[data-selenium-video-tile] .focusTarget__54e4b[role="button"]')];
+console.log('🎯 Found video tiles:', tiles.length);
+const results = tiles.map((el, i)=>{
+  const videoTile = el.closest('[data-selenium-video-tile]');
+  const id = videoTile?.dataset?.seleniumVideoTile;
+  const name = `Stream ${i+1}`;
+  return { id, name };
+});
+console.log('📊 Streams:', results);
+if(!results.length){console.warn('❌ No streams found – hãy bật Grid + multistream và tắt camera/preview');}
+  </template>
+
+  <template id="tpl-main-script"><!-- ========== Main integration: keep GRID (last), dedupe IDs, stable order, Alt hotkeys, no username scraping ========== -->
+(function(){'use strict';
+  const ORDER_BOOK = new Map(); // id -> slot (ổn định)
+  let CURRENT_STREAM_IDS = [];   // [{id,name,kind}]
+  let CURRENT_STREAM_INDEX = 0;
+
+  function classifyTile(tile){
+    const videoCount = tile.querySelectorAll('video, canvas').length;
+    const gridLike = tile.querySelector('[class*="grid" i],[class*="gallery" i]');
+    return (videoCount >= 2 || gridLike) ? 'grid' : 'individual';
+  }
+
+  function scanTiles(){
+    const btns = Array.from(document.querySelectorAll('div[data-selenium-video-tile] .focusTarget__54e4b[role="button"]'));
+    return btns.map(function(btn, idx){
+      const tile = btn.closest('[data-selenium-video-tile]');
+      const id = tile && tile.dataset && tile.dataset.seleniumVideoTile;
+      if(!id) return null;
+      const kind = classifyTile(tile);
+      const name = (kind === 'grid') ? 'GRID' : ('Stream ' + (idx+1));
+      return { id:id, name:name, kind:kind };
+    }).filter(Boolean);
+  }
+
+  // Dedupe theo ID: nếu trùng giữa grid & individual → giữ individual; vẫn giữ 1 entry GRID nếu nó có ID khác
+  function dedupePreferIndividual(arr){
+    const best = new Map();
+    for(const it of arr){
+      const prev = best.get(it.id);
+      if(!prev){ best.set(it.id, it); continue; }
+      if(prev.kind !== 'individual' && it.kind === 'individual') best.set(it.id, it);
+    }
+    return Array.from(best.values());
+  }
+
+  // Thứ tự ổn định + đẩy GRID xuống cuối cùng
+  function stableOrder(entries){
+    const used = new Set();
+    const placed = [];
+    // Giữ slot cũ
+    entries.forEach(function(e){
+      if(ORDER_BOOK.has(e.id)){
+        const slot = ORDER_BOOK.get(e.id);
+        placed.push({slot:slot, id:e.id, name:e.name, kind:e.kind});
+        used.add(slot);
+      }
+    });
+    // ID mới → slot trống nhỏ nhất (ưu tiên individual trước grid)
+    const newcomers = entries.filter(function(e){return !ORDER_BOOK.has(e.id);}).sort(function(a,b){
+      if((a.kind==='individual') === (b.kind==='individual')) return 0; return (a.kind==='individual')? -1 : 1;
+    });
+    function nextFreeSlot(){ var s=0; while(used.has(s)) s++; used.add(s); return s; }
+    newcomers.forEach(function(e){ var slot = nextFreeSlot(); ORDER_BOOK.set(e.id, slot); placed.push({slot:slot, id:e.id, name:e.name, kind:e.kind}); });
+    // Sort theo slot nhưng GRID luôn ở cuối
+    placed.sort(function(a,b){
+      if(a.kind==='grid' && b.kind!=='grid') return 1;
+      if(b.kind==='grid' && a.kind!=='grid') return -1;
+      return a.slot - b.slot;
+    });
+    return placed.map(function(p){ return {id:p.id, name:p.name, kind:p.kind}; });
+  }
+
+  function getCurrentStreamIds(){
+    try{
+      const raw  = scanTiles();
+      const uniq = dedupePreferIndividual(raw);
+      const ordered = stableOrder(uniq);
+      return ordered;
+    }catch(e){ console.error(e); return []; }
+  }
+
+  function refreshStreams(){
+    CURRENT_STREAM_IDS = getCurrentStreamIds();
+    if(CURRENT_STREAM_INDEX >= CURRENT_STREAM_IDS.length) CURRENT_STREAM_INDEX = Math.max(0, CURRENT_STREAM_IDS.length - 1);
+    return CURRENT_STREAM_IDS;
+  }
+
+  function switchToStreamById(id){
+    try{
+      const sel = 'div[data-selenium-video-tile="' + CSS.escape(id) + '"] .focusTarget__54e4b[role="button"]';
+      const target = document.querySelector(sel);
+      if(target){ target.click(); CURRENT_STREAM_INDEX = Math.max(0, CURRENT_STREAM_IDS.findIndex(function(s){ return (s.id||s)===id; })); return true; }
+      return false;
+    }catch(e){ console.error(e); return false; }
+  }
+
+  function switchToStreamByIndex(i){ if(i<0||i>=CURRENT_STREAM_IDS.length) return false; const id=(CURRENT_STREAM_IDS[i].id||CURRENT_STREAM_IDS[i]); return switchToStreamById(id); }
+  function switchToNextStream(){ if(!CURRENT_STREAM_IDS.length) refreshStreams(); if(!CURRENT_STREAM_IDS.length) return false; CURRENT_STREAM_INDEX=(CURRENT_STREAM_INDEX+1)%CURRENT_STREAM_IDS.length; return switchToStreamByIndex(CURRENT_STREAM_INDEX); }
+  function switchToPreviousStream(){ if(!CURRENT_STREAM_IDS.length) refreshStreams(); if(!CURRENT_STREAM_IDS.length) return false; CURRENT_STREAM_INDEX=(CURRENT_STREAM_INDEX-1+CURRENT_STREAM_IDS.length)%CURRENT_STREAM_IDS.length; return switchToStreamByIndex(CURRENT_STREAM_INDEX); }
+
+  window.DiscordStreamDeck = {
+    refreshStreams: refreshStreams,
+    switchToStreamById: switchToStreamById,
+    switchToStreamByIndex: switchToStreamByIndex,
+    switchToNextStream: switchToNextStream,
+    switchToPreviousStream: switchToPreviousStream,
+    getCurrentStreamIds: getCurrentStreamIds,
+    getStatus: function(){ return { streams: CURRENT_STREAM_IDS.length? CURRENT_STREAM_IDS: [], currentIndex: CURRENT_STREAM_INDEX, totalStreams: CURRENT_STREAM_IDS.length }; }
+  };
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(refreshStreams, 2000); });
+  } else { setTimeout(refreshStreams, 2000); }
+
+  // Hotkeys: Alt + F1..F9, Alt+←/→
+  document.addEventListener('keydown', function(e){
+    if(e.altKey && /^F[1-9]$/.test(e.key)){ e.preventDefault(); var n=parseInt(e.key.slice(1),10); if(n>=1&&n<=9) switchToStreamByIndex(n-1); }
+    if(e.altKey && e.key==='ArrowRight'){ e.preventDefault(); switchToNextStream(); }
+    if(e.altKey && e.key==='ArrowLeft'){ e.preventDefault(); switchToPreviousStream(); }
+  });
+})();
+  </template>
+
+  <script src="app.js"></script>
 </body>
 </html>
