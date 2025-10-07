@@ -420,6 +420,14 @@ if(!results.length){console.warn('❌ No streams found – hãy bật multistrea
       return;
     }
     
+    // Ctrl + Shift + R to refresh streams
+    if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+      e.preventDefault();
+      refreshStreams();
+      console.log('🔄 Discord Stream Switcher: Streams refreshed');
+      return;
+    }
+    
     // Ctrl + Shift + F to toggle sidebar for fullscreen viewing
     if (e.ctrlKey && e.shiftKey && e.key === 'F') {
       e.preventDefault();
@@ -555,7 +563,8 @@ if(!results.length){console.warn('❌ No streams found – hãy bật multistrea
 
   // Confirmation message
   console.log('🎮 Discord Stream Switcher - Main script loaded successfully!');
-  console.log('✅ DiscordStreamDeck is ready. Use Ctrl+Shift+Q (with overlay) or Ctrl+Shift+W (toggle switch mode)');
+  console.log('✅ DiscordStreamDeck is ready.');
+  console.log('🎯 Hotkeys: Ctrl+Shift+Q (overlay), Ctrl+Shift+W (switch mode), Ctrl+Shift+R (refresh), Ctrl+Shift+F (fullscreen)');
 })();</script>
 
   <script src="app.js"></script>

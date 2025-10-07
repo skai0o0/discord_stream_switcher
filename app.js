@@ -43,13 +43,13 @@ async function testDiscord(){
 }
 
 /**
- * Render tiles: chỉ hiển thị badge, tên, ID. Click tile = switch.
- * Không còn toolbar Swap/Focus, không logic webcam.
+ * Render tiles: chỉ hiển thị tên, ID và hotkey. Click tile = switch.
+ * Đã loại bỏ grid badges và webcam features.
  */
 function __renderStreamsTo(container, streams, currentIndex){
   container.innerHTML='';
   if(!streams || !streams.length){
-    container.innerHTML = '<div class="muted">Chưa phát hiện stream nào. Kiểm tra Grid view + multistream + tắt camera/preview.</div>';
+    container.innerHTML = '<div class="muted">Chưa phát hiện stream nào. Kiểm tra multistream.</div>';
     return;
   }
   streams.forEach(function(s,i){
@@ -59,12 +59,9 @@ function __renderStreamsTo(container, streams, currentIndex){
 
     const id = (typeof s==='string'? s : s && s.id);
     const name = (s && s.name) ? s.name : ('Stream ' + (i+1));
-    const isGrid = (s && s.kind === 'grid');
     const hotkey = 'F'+(i+1);
-    const gridBadge = isGrid ? '<div class="badge kind">GRID</div>' : '';
 
     tile.innerHTML =
-      gridBadge +
       '<div class="badge">'+hotkey+'</div>'+
       '<div class="name">'+ name +'</div>'+
       '<div class="id">'+ ((id||'').slice(0,8))+'...'+((id||'').slice(-4)) +'</div>';
@@ -106,11 +103,62 @@ async function prevStream(){
 }
 
 function copy(text){
-  navigator.clipboard.writeText(text).then(()=>log('Copied to clipboard'))
-    .catch(function(e){log('Copy failed: '+e.message)});
+  if (!text || text.trim() === '') {
+    log('Copy failed: No text to copy');
+    return;
+  }
+  
+  if (!navigator.clipboard) {
+    log('Copy failed: Clipboard API not available (requires HTTPS or localhost)');
+    return;
+  }
+  
+  navigator.clipboard.writeText(text)
+    .then(() => {
+      log('✅ Successfully copied ' + text.length + ' characters to clipboard');
+    })
+    .catch(function(e){
+      log('❌ Copy failed: ' + e.message);
+    });
 }
-function copyTestSnippet(){ copy(document.getElementById('tpl-test-snippet').textContent.trim()); }
-function copyMainScript(){ copy(document.getElementById('tpl-main-script').textContent.trim()); }
+
+function copyTestSnippet(){ 
+  const element = document.getElementById('tpl-test-snippet');
+  if (!element) {
+    log('❌ Script tpl-test-snippet not found');
+    return;
+  }
+  // For script elements with type="text/plain", use textContent or innerHTML
+  const text = element.textContent.trim();
+  copy(text);
+}
+
+function copyDebugScript(){ 
+  const element = document.getElementById('tpl-debug-arialabel');
+  if (!element) {
+    log('❌ Script tpl-debug-arialabel not found');
+    return;
+  }
+  // For script elements with type="text/plain", use textContent or innerHTML
+  const text = element.textContent.trim();
+  copy(text);
+}
+
+function copyMainScript(){ 
+  const element = document.getElementById('tpl-main-script');
+  if (!element) {
+    log('❌ Script tpl-main-script not found');
+    return;
+  }
+  // For script elements with type="text/plain", use textContent or innerHTML
+  const text = element.textContent.trim();
+  copy(text);
+}
+
+// Expose copy functions to global scope
+window.copyTestSnippet = copyTestSnippet;
+window.copyDebugScript = copyDebugScript;
+window.copyMainScript = copyMainScript;
 
 // ===== Self Tests (đã bỏ kiểm tra swap/focus toolbar) =====
 function appendTest(out, name, ok, note){
@@ -129,11 +177,11 @@ async function runSelfTests(){
     })();
     appendTest(out, 'T1: Assign serverUrlLbl', ok1);
 
-    // T2: Render grid + GRID badge
+    // T2: Render streams correctly
     var temp=document.createElement('div');
-    __renderStreamsTo(temp, [{id:'AAA111',name:'Stream 1'},{id:'GRID_ID',name:'GRID',kind:'grid'}], 0);
-    var ok2 = temp.querySelectorAll('.tile').length===2 && temp.querySelector('.badge.kind')!==null;
-    appendTest(out,'T2: GRID badge present', ok2);
+    __renderStreamsTo(temp, [{id:'AAA111',name:'Stream 1'},{id:'BBB222',name:'Stream 2'}], 0);
+    var ok2 = temp.querySelectorAll('.tile').length===2 && temp.querySelector('.badge')!==null;
+    appendTest(out,'T2: Stream tiles rendered', ok2);
 
     // T3: Template main có DiscordStreamDeck (đảm bảo người dùng copy đúng script inject)
     var txt = document.getElementById('tpl-main-script').textContent;
@@ -143,7 +191,7 @@ async function runSelfTests(){
     appendTest(out,'T4: api() available', typeof api==='function');
 
     log('Self tests finished');
-  }catch(e){ appendTest(out,'Runtime error',false,e.message); console.error(e); }
+  }catch(e){ appendTest(out,'Runtime error',false,e.message); }
 }
 window.runSelfTests = runSelfTests;
 

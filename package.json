@@ -1,15 +1,19 @@
 {
-  "name": "discord-web-app",
+  "name": "discord-stream-switcher",
   "version": "1.0.0",
   "description": "Discord Stream Switcher Web App using Chrome Remote Debugging",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "ws": "^8.8.1",
     "chrome-remote-interface": "^0.32.0"
-  }
+  },
+  "keywords": ["discord", "stream", "switcher", "remote-debugging"],
+  "author": "skai0o0",
+  "license": "MIT"
 }
