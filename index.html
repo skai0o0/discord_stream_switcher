@@ -46,11 +46,21 @@
           <p class="muted">B1: Mở Discord ở debug mode → B2: <span class="inline-code">chrome://inspect/#devices</span> → Inspect tab Discord → Console → Paste script.</p>
           <div class="row" style="margin:8px 0 12px; display:flex; gap:10px; flex-wrap:wrap">
             <button class="btn" onclick="copyTestSnippet()">📋 Copy Test Snippet</button>
+            <button class="btn" onclick="copyDebugScript()">🔍 Copy Debug Aria-Label Scanner</button>
             <button class="btn btn-primary" onclick="copyMainScript()">📋 Copy Main Script</button>
           </div>
           <details>
             <summary class="muted">Xem nhanh lệnh mở Discord debug</summary>
             <div class="mono" style="margin-top:8px">%LocalAppData%\Discord\Update.exe --processStart Discord.exe --process-start-args="--remote-debugging-port=9222"</div>
+          </details>
+          <details style="margin-top:8px">
+            <summary class="muted">Hướng dẫn sử dụng Debug Scanner</summary>
+            <div style="margin-top:8px; font-size:13px; color:var(--muted)">
+              <p>1. Copy và paste <strong>Debug Aria-Label Scanner</strong> vào Discord Console</p>
+              <p>2. Script sẽ scan tất cả element có aria-label và nhóm chúng theo chức năng</p>
+              <p>3. Kết quả sẽ hiển thị trong Console với các selector để dùng cho fullscreen mode</p>
+              <p>4. Copy các selector được suggest để update code fullscreen mode</p>
+            </div>
           </details>
         </div>
       </section>
@@ -86,9 +96,133 @@
     </div>
   </main>
 
-  <!-- ===== Templates: script snippets to copy ===== -->
-  <template id="tpl-test-snippet"><!-- Simple detector (không parse tên) -->
-const tiles = [...document.querySelectorAll('div[data-selenium-video-tile] .focusTarget__54e4b[role="button"]')];
+  <!-- ===== Scripts: script snippets to copy ===== -->
+  
+  <!-- Debug script to scan Discord UI elements and their aria-labels -->
+  <script type="text/plain" id="tpl-debug-arialabel">
+// 🔍 Discord UI Element Scanner - Scan aria-label của các element
+(function() {
+  console.log('🔍 Starting Discord UI Element Scanner...');
+  
+  // Scan common Discord UI elements
+  const selectors = [
+    'nav[aria-label]',
+    'div[aria-label]',
+    'button[aria-label]',
+    'section[aria-label]',
+    '[role="navigation"][aria-label]',
+    '[role="button"][aria-label]',
+    '[role="region"][aria-label]',
+    '[role="banner"][aria-label]',
+    '[role="complementary"][aria-label]'
+  ];
+  
+  const foundElements = new Map();
+  
+  selectors.forEach(selector => {
+    try {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(el => {
+        const ariaLabel = el.getAttribute('aria-label');
+        if (ariaLabel && ariaLabel.trim()) {
+          const key = `${el.tagName.toLowerCase()}[aria-label="${ariaLabel}"]`;
+          if (!foundElements.has(key)) {
+            foundElements.set(key, {
+              element: el,
+              ariaLabel: ariaLabel,
+              selector: selector,
+              classList: Array.from(el.classList).join(' ')
+            });
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('Selector error:', selector, e);
+    }
+  });
+  
+  console.log(`🎯 Found ${foundElements.size} elements with aria-label:`);
+  console.log('========================================');
+  
+  // Group by likely function
+  const groups = {
+    navigation: [],
+    controls: [],
+    user: [],
+    chat: [],
+    voice: [],
+    other: []
+  };
+  
+  foundElements.forEach((data, key) => {
+    const label = data.ariaLabel.toLowerCase();
+    
+    if (label.includes('server') || label.includes('guild') || label.includes('channel') || 
+        label.includes('thanh bên') || label.includes('kênh') || label.includes('máy chủ')) {
+      groups.navigation.push(data);
+    } else if (label.includes('control') || label.includes('call') || label.includes('voice') || 
+               label.includes('điều khiển') || label.includes('cuộc gọi')) {
+      groups.controls.push(data);
+    } else if (label.includes('user') || label.includes('account') || label.includes('profile') || 
+               label.includes('người dùng') || label.includes('tài khoản')) {
+      groups.user.push(data);
+    } else if (label.includes('chat') || label.includes('message') || 
+               label.includes('trò chuyện') || label.includes('tin nhắn')) {
+      groups.chat.push(data);
+    } else if (label.includes('voice') || label.includes('audio') || label.includes('sound') || 
+               label.includes('âm thanh') || label.includes('tiếng')) {
+      groups.voice.push(data);
+    } else {
+      groups.other.push(data);
+    }
+  });
+  
+  // Display results by group
+  Object.entries(groups).forEach(([groupName, items]) => {
+    if (items.length > 0) {
+      console.log(`\n📁 ${groupName.toUpperCase()} (${items.length} items):`);
+      items.forEach(item => {
+        console.log(`  ✅ ${item.ariaLabel}`);
+        console.log(`     Selector: ${item.element.tagName.toLowerCase()}[aria-label="${item.ariaLabel}"]`);
+        console.log(`     Classes: ${item.classList || 'none'}`);
+        console.log('     Element:', item.element);
+      });
+    }
+  });
+  
+  // Export results for copy-paste
+  const exportData = {
+    timestamp: new Date().toISOString(),
+    totalElements: foundElements.size,
+    byGroup: groups,
+    allSelectors: Array.from(foundElements.values()).map(item => 
+      `${item.element.tagName.toLowerCase()}[aria-label="${item.ariaLabel}"]`
+    )
+  };
+  
+  console.log('\n📋 Export data (copy this for development):');
+  console.log(JSON.stringify(exportData, null, 2));
+  
+  // Suggest selectors for fullscreen mode
+  console.log('\n🎯 Suggested selectors for fullscreen mode:');
+  groups.navigation.forEach(item => {
+    console.log(`  '${item.element.tagName.toLowerCase()}[aria-label*="${item.ariaLabel.split(' ')[0]}"]',`);
+  });
+  groups.controls.forEach(item => {
+    console.log(`  '${item.element.tagName.toLowerCase()}[aria-label*="${item.ariaLabel.split(' ')[0]}"]',`);
+  });
+  groups.user.forEach(item => {
+    console.log(`  '${item.element.tagName.toLowerCase()}[aria-label*="${item.ariaLabel.split(' ')[0]}"]',`);
+  });
+  
+  console.log('🔍 Discord UI Element Scanner completed!');
+  
+  // Return data for further use
+  return exportData;
+})();
+</script>
+
+  <script type="text/plain" id="tpl-test-snippet">const tiles = [...document.querySelectorAll('div[data-selenium-video-tile] .focusTarget__54e4b[role="button"]')];
 console.log('🎯 Found video tiles:', tiles.length);
 const results = tiles.map((el, i)=>{
   const videoTile = el.closest('[data-selenium-video-tile]');
@@ -96,21 +230,14 @@ const results = tiles.map((el, i)=>{
   const name = `Stream ${i+1}`;
   return { id, name };
 });
-console.log('📊 Streams:', results);
-if(!results.length){console.warn('❌ No streams found – hãy bật Grid + multistream và tắt camera/preview');}
-  </template>
+console.log('📊 Individual Streams:', results);
+if(!results.length){console.warn('❌ No streams found – hãy bật multistream');}</script>
 
-  <template id="tpl-main-script"><!-- ========== Main integration: keep GRID (last), dedupe IDs, stable order, Alt hotkeys, no username scraping ========== -->
+  <script type="text/plain" id="tpl-main-script">
 (function(){'use strict';
   const ORDER_BOOK = new Map(); // id -> slot (ổn định)
-  let CURRENT_STREAM_IDS = [];   // [{id,name,kind}]
+  let CURRENT_STREAM_IDS = [];   // [{id,name}]
   let CURRENT_STREAM_INDEX = 0;
-
-  function classifyTile(tile){
-    const videoCount = tile.querySelectorAll('video, canvas').length;
-    const gridLike = tile.querySelector('[class*="grid" i],[class*="gallery" i]');
-    return (videoCount >= 2 || gridLike) ? 'grid' : 'individual';
-  }
 
   function scanTiles(){
     const btns = Array.from(document.querySelectorAll('div[data-selenium-video-tile] .focusTarget__54e4b[role="button"]'));
@@ -118,24 +245,22 @@ if(!results.length){console.warn('❌ No streams found – hãy bật Grid + mul
       const tile = btn.closest('[data-selenium-video-tile]');
       const id = tile && tile.dataset && tile.dataset.seleniumVideoTile;
       if(!id) return null;
-      const kind = classifyTile(tile);
-      const name = (kind === 'grid') ? 'GRID' : ('Stream ' + (idx+1));
-      return { id:id, name:name, kind:kind };
+      const name = 'Stream ' + (idx+1);
+      return { id:id, name:name };
     }).filter(Boolean);
   }
 
-  // Dedupe theo ID: nếu trùng giữa grid & individual → giữ individual; vẫn giữ 1 entry GRID nếu nó có ID khác
-  function dedupePreferIndividual(arr){
-    const best = new Map();
-    for(const it of arr){
-      const prev = best.get(it.id);
-      if(!prev){ best.set(it.id, it); continue; }
-      if(prev.kind !== 'individual' && it.kind === 'individual') best.set(it.id, it);
-    }
-    return Array.from(best.values());
+  // Lọc bỏ duplicate IDs (giữ cái đầu tiên)
+  function dedupeStreams(arr){
+    const seen = new Set();
+    return arr.filter(function(item){
+      if(seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
   }
 
-  // Thứ tự ổn định + đẩy GRID xuống cuối cùng
+  // Thứ tự ổn định
   function stableOrder(entries){
     const used = new Set();
     const placed = [];
@@ -143,29 +268,23 @@ if(!results.length){console.warn('❌ No streams found – hãy bật Grid + mul
     entries.forEach(function(e){
       if(ORDER_BOOK.has(e.id)){
         const slot = ORDER_BOOK.get(e.id);
-        placed.push({slot:slot, id:e.id, name:e.name, kind:e.kind});
+        placed.push({slot:slot, id:e.id, name:e.name});
         used.add(slot);
       }
     });
-    // ID mới → slot trống nhỏ nhất (ưu tiên individual trước grid)
-    const newcomers = entries.filter(function(e){return !ORDER_BOOK.has(e.id);}).sort(function(a,b){
-      if((a.kind==='individual') === (b.kind==='individual')) return 0; return (a.kind==='individual')? -1 : 1;
-    });
+    // ID mới → slot trống nhỏ nhất
+    const newcomers = entries.filter(function(e){return !ORDER_BOOK.has(e.id);});
     function nextFreeSlot(){ var s=0; while(used.has(s)) s++; used.add(s); return s; }
-    newcomers.forEach(function(e){ var slot = nextFreeSlot(); ORDER_BOOK.set(e.id, slot); placed.push({slot:slot, id:e.id, name:e.name, kind:e.kind}); });
-    // Sort theo slot nhưng GRID luôn ở cuối
-    placed.sort(function(a,b){
-      if(a.kind==='grid' && b.kind!=='grid') return 1;
-      if(b.kind==='grid' && a.kind!=='grid') return -1;
-      return a.slot - b.slot;
-    });
-    return placed.map(function(p){ return {id:p.id, name:p.name, kind:p.kind}; });
+    newcomers.forEach(function(e){ var slot = nextFreeSlot(); ORDER_BOOK.set(e.id, slot); placed.push({slot:slot, id:e.id, name:e.name}); });
+    // Sort theo slot
+    placed.sort(function(a,b){ return a.slot - b.slot; });
+    return placed.map(function(p){ return {id:p.id, name:p.name}; });
   }
 
   function getCurrentStreamIds(){
     try{
-      const raw  = scanTiles();
-      const uniq = dedupePreferIndividual(raw);
+      const raw = scanTiles();
+      const uniq = dedupeStreams(raw);
       const ordered = stableOrder(uniq);
       return ordered;
     }catch(e){ console.error(e); return []; }
@@ -204,14 +323,240 @@ if(!results.length){console.warn('❌ No streams found – hãy bật Grid + mul
     document.addEventListener('DOMContentLoaded', function(){ setTimeout(refreshStreams, 2000); });
   } else { setTimeout(refreshStreams, 2000); }
 
-  // Hotkeys: Alt + F1..F9, Alt+←/→
-  document.addEventListener('keydown', function(e){
-    if(e.altKey && /^F[1-9]$/.test(e.key)){ e.preventDefault(); var n=parseInt(e.key.slice(1),10); if(n>=1&&n<=9) switchToStreamByIndex(n-1); }
-    if(e.altKey && e.key==='ArrowRight'){ e.preventDefault(); switchToNextStream(); }
-    if(e.altKey && e.key==='ArrowLeft'){ e.preventDefault(); switchToPreviousStream(); }
+  // Hotkey: Ctrl + Shift + Q to show stream selector, Ctrl + Shift + W for switch mode
+  let streamSelectorVisible = false;
+  let streamSelectorEl = null;
+  let switchModeActive = false;
+
+  function createStreamSelector() {
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      z-index: 999999;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      min-width: 200px;
+      border: 2px solid #5865f2;
+    `;
+    
+    const streams = CURRENT_STREAM_IDS;
+    let content = '<div style="margin-bottom: 10px; font-weight: bold;">🎮 Stream Switcher</div>';
+    
+    if (!streams.length) {
+      content += '<div style="color: #faa61a;">No streams detected</div>';
+    } else {
+      content += '<div style="margin-bottom: 8px; font-size: 12px; opacity: 0.8;">Press number to switch:</div>';
+      streams.forEach((stream, i) => {
+        if (i < 9) { // Only show first 9 streams
+          const name = stream.name || `Stream ${i+1}`;
+          content += `<div style="margin: 4px 0;">${i+1}: ${name}</div>`;
+        }
+      });
+    }
+    
+    content += `
+      <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #444; font-size: 12px; opacity: 0.8;">
+        ← → : Previous/Next<br>
+        0 : Cancel
+      </div>
+    `;
+    
+    el.innerHTML = content;
+    return el;
+  }
+
+  function showStreamSelector() {
+    if (streamSelectorVisible) return;
+    
+    refreshStreams(); // Update current streams
+    streamSelectorEl = createStreamSelector();
+    document.body.appendChild(streamSelectorEl);
+    streamSelectorVisible = true;
+    
+    // Auto hide after 5 seconds
+    setTimeout(hideStreamSelector, 5000);
+  }
+
+  function hideStreamSelector() {
+    if (!streamSelectorVisible) return;
+    
+    if (streamSelectorEl) {
+      streamSelectorEl.remove();
+      streamSelectorEl = null;
+    }
+    streamSelectorVisible = false;
+  }
+
+  function toggleSwitchMode() {
+    switchModeActive = !switchModeActive;
+    
+    if (switchModeActive) {
+      refreshStreams(); // Update current streams
+      console.log('� Switch mode ACTIVATED - Press 1-9 for streams, ← → for prev/next, Ctrl+Shift+W to exit');
+    } else {
+      console.log('� Switch mode DEACTIVATED');
+    }
+  }
+
+  document.addEventListener('keydown', function(e) {
+    // Ctrl + Shift + Q to show visual selector
+    if (e.ctrlKey && e.shiftKey && e.key === 'Q') {
+      e.preventDefault();
+      showStreamSelector();
+      return;
+    }
+    
+    // Ctrl + Shift + W to toggle switch mode (persistent silent mode)
+    if (e.ctrlKey && e.shiftKey && e.key === 'W') {
+      e.preventDefault();
+      toggleSwitchMode();
+      return;
+    }
+    
+    // Ctrl + Shift + F to toggle sidebar for fullscreen viewing
+    if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+      e.preventDefault();
+      
+      // Use aria-label selectors (more stable across accounts/servers)
+      const elementsToFind = [
+        // Sidebar/Guild list
+        'nav[aria-label*="Server"], nav[aria-label*="Guild"], nav[aria-label*="Servers"]',
+        'nav[aria-label*="Thanh bên"], nav[aria-label*="Danh sách máy chủ"]', // Vietnamese
+        'nav[aria-label*="サーバー"], nav[aria-label*="ギルド"]', // Japanese
+        'div[role="navigation"][aria-label*="server"], div[role="navigation"][aria-label*="guild"]',
+        
+        // Chat/Channel list
+        'nav[aria-label*="Channel"], nav[aria-label*="Chat"]',
+        'nav[aria-label*="Kênh"], nav[aria-label*="Trò chuyện"]', // Vietnamese
+        'div[role="navigation"][aria-label*="channel"]',
+        
+        // User panel/bottom bar
+        '[aria-label*="User area"], [aria-label*="Account"], [aria-label*="Profile"]',
+        '[aria-label*="Khu vực người dùng"], [aria-label*="Tài khoản"]', // Vietnamese
+        
+        // Call controls
+        '[aria-label*="Call controls"], [aria-label*="Voice controls"]',
+        '[aria-label*="Điều khiển cuộc gọi"], [aria-label*="Điều khiển âm thanh"]', // Vietnamese
+        
+        // Fallback to class-based selectors (as backup)
+        'div[data-collapsed] nav.wrapper_ef3116.guilds_c48ade',
+        'div.sidebar_c48ade',
+        'nav.wrapper_ef3116',
+        '.title_c38106, .title_bb0d86',
+        '.topControls_bfe55a.controlSection_bfe55a',
+        '.bottomControls_bfe55a.controlSection_bfe55a',
+        '.bar_c38106.theme-dark',
+        '.leading_c38106'
+      ];
+      
+      // Find all elements to toggle
+      const elementsToToggle = [];
+      elementsToFind.forEach(selector => {
+        try {
+          const elements = document.querySelectorAll(selector);
+          elements.forEach(el => {
+            if (el && !elementsToToggle.includes(el)) {
+              elementsToToggle.push(el);
+            }
+          });
+        } catch (e) {
+          // Ignore selector errors
+        }
+      });
+      
+      if (elementsToToggle.length > 0) {
+        // Check if currently hidden by looking at the first found element
+        const isCurrentlyHidden = elementsToToggle[0]?.style.display === 'none' || 
+                                  elementsToToggle[0]?.closest('div[data-collapsed]')?.getAttribute('data-collapsed') === 'true';
+        
+        if (isCurrentlyHidden) {
+          // Show all elements
+          elementsToToggle.forEach(el => {
+            el.style.display = '';
+            const parentDiv = el.closest('div[data-collapsed]');
+            if (parentDiv) {
+              parentDiv.style.display = '';
+              parentDiv.setAttribute('data-collapsed', 'false');
+            }
+          });
+          console.log('🎮 Discord Stream Switcher: UI elements shown - Normal view restored');
+        } else {
+          // Hide all elements
+          elementsToToggle.forEach(el => {
+            el.style.display = 'none';
+            const parentDiv = el.closest('div[data-collapsed]');
+            if (parentDiv) {
+              parentDiv.setAttribute('data-collapsed', 'true');
+            }
+          });
+          console.log('🎮 Discord Stream Switcher: UI elements hidden - Clean fullscreen view enabled');
+        }
+        
+        console.log(`🔍 Found and toggled ${elementsToToggle.length} UI elements`);
+      } else {
+        console.log('🎮 Discord Stream Switcher: No UI elements found to toggle');
+      }
+      return;
+    }
+    
+    // Only handle other keys when selector is visible OR switch mode is active
+    if (!streamSelectorVisible && !switchModeActive) return;
+    
+    e.preventDefault();
+    
+    // Numbers 1-9 to switch streams
+    if (e.key >= '1' && e.key <= '9') {
+      const index = parseInt(e.key) - 1;
+      if (index < CURRENT_STREAM_IDS.length) {
+        switchToStreamByIndex(index);
+        console.log(`🎯 Switched to stream ${index + 1}: ${CURRENT_STREAM_IDS[index].name || 'Unknown'}`);
+      }
+      
+      // Only hide selector in visual mode, keep switch mode active
+      if (streamSelectorVisible) {
+        hideStreamSelector();
+      }
+    }
+    // 0 to cancel (only works in visual mode)
+    else if (e.key === '0' && streamSelectorVisible) {
+      hideStreamSelector();
+    }
+    // Arrow keys for previous/next
+    else if (e.key === 'ArrowLeft') {
+      switchToPreviousStream();
+      console.log('⬅️ Previous stream');
+      
+      // Only hide selector in visual mode, keep switch mode active
+      if (streamSelectorVisible) {
+        hideStreamSelector();
+      }
+    }
+    else if (e.key === 'ArrowRight') {
+      switchToNextStream();
+      console.log('➡️ Next stream');
+      
+      // Only hide selector in visual mode, keep switch mode active
+      if (streamSelectorVisible) {
+        hideStreamSelector();
+      }
+    }
+    // Escape to cancel (only works in visual mode)
+    else if (e.key === 'Escape' && streamSelectorVisible) {
+      hideStreamSelector();
+    }
   });
-})();
-  </template>
+
+  // Confirmation message
+  console.log('🎮 Discord Stream Switcher - Main script loaded successfully!');
+  console.log('✅ DiscordStreamDeck is ready. Use Ctrl+Shift+Q (with overlay) or Ctrl+Shift+W (toggle switch mode)');
+})();</script>
 
   <script src="app.js"></script>
 </body>
